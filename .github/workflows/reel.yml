@@ -19,7 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.paginas.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,11 +50,12 @@ jobs:
           path: media
 
       - name: Publicar Pages
+        id: despliegue
         uses: actions/deploy-pages@v4
 
       - name: Esperar a que el video este en linea
         run: |
-          URL="${{ steps.paginas.outputs.page_url }}reel.mp4"
+          URL="${{ steps.despliegue.outputs.page_url }}reel.mp4"
           echo "URL=$URL"
           for i in $(seq 1 30); do
             CODE=$(curl -s -o /dev/null -w "%{http_code}" -I "$URL" || true)
@@ -70,7 +70,7 @@ jobs:
         env:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
-          VIDEO_URL: ${{ steps.paginas.outputs.page_url }}reel.mp4
+          VIDEO_URL: ${{ steps.despliegue.outputs.page_url }}reel.mp4
         run: |
           export CAPTION="$(cat build/caption.txt)"
           python publicar.py
