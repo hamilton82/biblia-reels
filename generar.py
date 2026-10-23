@@ -18,7 +18,7 @@ ROOT = Path(__file__).parent
 W, H = 1080, 1920
 VOICE = "es-VE-SebastianNeural"
 PLAY_URL = "https://play.google.com/store/apps/details?id=com.santabiblia.santa_biblia"
-CTA_TEXTO = "¿Quieres aprender más de la Biblia? Descarga Biblia+, gratis en Google Play."
+CTA_TEXTO = "¿Quieres aprender más de la Biblia? Descarga Biblia gratis desde el enlace de la biografía."
 
 
 def fuente(size, negrita=True):
@@ -106,11 +106,11 @@ def render_cta():
     for linea in lineas:
         d.text((W // 2, y), linea, font=grande, fill=(245, 242, 232), anchor="mm")
         y += 92
-    botón = fuente(64)
-    d.rounded_rectangle([W // 2 - 340, y + 60, W // 2 + 340, y + 190], radius=28, fill=(30, 160, 80))
-    d.text((W // 2, y + 125), "Descarga Biblia+", font=botón, fill=(255, 255, 255), anchor="mm")
-    enlace = fuente(34, negrita=False)
-    d.text((W // 2, y + 260), PLAY_URL.replace("https://", ""), font=enlace, fill=(200, 200, 210), anchor="mm")
+    botón = fuente(60)
+    d.rounded_rectangle([W // 2 - 340, y + 50, W // 2 + 340, y + 170], radius=28, fill=(30, 160, 80))
+    d.text((W // 2, y + 110), "Descarga Biblia+", font=botón, fill=(255, 255, 255), anchor="mm")
+    enlace = fuente(42)
+    d.text((W // 2, y + 240), "Enlace en la biografía", font=enlace, fill=(212, 175, 90), anchor="mm")
     return img
 
 
@@ -152,7 +152,7 @@ def generar_musica(ruta_wav, segundos, bpm=60):
             senal += 0.35 * np.sin(2 * math.pi * freq * 2 * i / rate)
         env = 0.25 + 0.08 * math.sin(2 * math.pi * 0.08 * i / rate)
         audio[int(i)] = senal * env
-    audio = audio / np.max(np.abs(audio)) * 0.22
+    audio = audio / np.max(np.abs(audio)) * 0.45
     ruido = np.random.normal(0, 0.008, n)
     audio = audio + ruido
     pcm = (audio * 32767).astype(np.int16)
@@ -204,8 +204,8 @@ def main():
     asyncio.run(tts(f"{verso['texto']}. {verso['ref']}.", p_voz_v))
     asyncio.run(tts(CTA_TEXTO, p_voz_c))
 
-    dur_v = max(duracion_mp3(p_voz_v) + 1.8, 8.0)
-    dur_c = duracion_mp3(p_voz_c) + 1.5
+    dur_v = max(duracion_mp3(p_voz_v) + 1.8, 12.0)
+    dur_c = duracion_mp3(p_voz_c) + 2.0
     total = dur_v + dur_c
 
     p_musica = tmp / "musica.wav"
@@ -226,7 +226,7 @@ def main():
             f"[2:a]aformat=sample_rates=44100:channel_layouts=stereo,apad=whole_dur={dur_v:.2f}[a0];"
             f"[3:a]aformat=sample_rates=44100:channel_layouts=stereo,apad=whole_dur={dur_c:.2f}[a1];"
             f"[a0][a1]concat=n=2:v=0:a=1[voz];"
-            f"[4:a]aformat=sample_rates=44100:channel_layouts=stereo,aloop=loop=-1:size=2e9[mus];"
+            f"[4:a]aformat=sample_rates=44100:channel_layouts=stereo,aloop=loop=-1:size=2e9,volume=1.4[mus];"
             f"[voz][mus]amix=inputs=2:duration=first:dropout_transition=3,"
             f"volume=1.0,afade=t=out:st={total - 1.2:.2f}:d=1.2[a]"
         ),
@@ -239,9 +239,9 @@ def main():
     )
 
     caption = (
-        f"{verso['texto']}\n\n📖 {verso['ref']}\n\n"
-        f"¿Quieres aprender más de la Biblia? Descarga Biblia+ gratis 👇\n{PLAY_URL}\n\n"
-        "#biblia #jesus #fe #cristiano #palabradedios #versiculo #dios #reels"
+        f"{verso['texto']}\n\n-- {verso['ref']} --\n\n"
+        f"Descarga Biblia+ gratis. Enlace en la biografía.\n\n"
+        f"#biblia #jesus #fe #cristiano #palabradedios #versiculo #dios"
     )
     (tmp / "caption.txt").write_text(caption, encoding="utf-8")
     print(f"VIDEO: {p_video}")
