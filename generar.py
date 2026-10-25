@@ -3,6 +3,7 @@ import asyncio
 import json
 import math
 import os
+import random
 import subprocess
 import sys
 import wave
@@ -19,6 +20,29 @@ W, H = 1080, 1920
 VOICE = "es-VE-SebastianNeural"
 PLAY_URL = "https://play.google.com/store/apps/details?id=com.santabiblia.santa_biblia"
 CTA_TEXTO = "¿Quieres aprender más de la Biblia? Descarga Biblia gratis desde el enlace de la biografía."
+
+PALETAS = [
+    ((18, 30, 68), (75, 20, 90), (100, 120, 230)),
+    ((10, 38, 54), (20, 16, 50), (50, 170, 190)),
+    ((48, 12, 22), (22, 15, 48), (230, 130, 70)),
+    ((12, 42, 32), (10, 22, 52), (70, 205, 165)),
+    ((42, 16, 62), (16, 16, 46), (185, 95, 225)),
+    ((26, 30, 48), (62, 26, 62), (150, 160, 210)),
+    ((52, 26, 12), (36, 12, 32), (235, 175, 85)),
+    ((12, 22, 50), (32, 62, 84), (90, 205, 225)),
+]
+
+NOTAS = {
+    "C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00, "A4": 440.00, "B4": 493.88,
+    "C5": 523.25, "D5": 587.33, "E5": 659.25, "G5": 783.99,
+    "C3": 130.81, "D3": 146.83, "E3": 164.81, "F3": 174.61, "G3": 196.00, "A3": 220.00, "B3": 246.94,
+}
+PROGRESION = [
+    ["C3", "E3", "G3", "C4", "E4", "G4", "C5", "E5"],
+    ["G3", "E3", "G3", "B3", "D4", "G4", "B3", "D5"],
+    ["A3", "E3", "A3", "C4", "E4", "A4", "C5", "E5"],
+    ["F3", "C3", "F3", "A3", "C4", "F4", "A4", "C5"],
+]
 
 
 def fuente(size, negrita=True):
@@ -48,21 +72,41 @@ def envolver(texto, fuente_obj, max_ancho):
     return lineas
 
 
-def fondo(degradado):
-    img = Image.new("RGB", (W, H))
-    px = img.load()
-    (r1, g1, b1), (r2, g2, b2) = degradado
-    for y in range(H):
-        t = y / H
-        t = t * t * (3 - 2 * t)
-        color = (int(r1 + (r2 - r1) * t), int(g1 + (g2 - g1) * t), int(b1 + (b2 - b1) * t))
-        for x in range(W):
-            px[x, y] = color
-    overlay = Image.new("L", (W, H), 0)
+def fondo(idx):
+    (r1, g1, b1), (r2, g2, b2), (gr, gg, gb) = PALETAS[idx % len(PALETAS)]
+    ty = np.linspace(0, 1, H)[:, None]
+    tx = np.linspace(0, 1, W)[None, :]
+    t = (0.72 * ty + 0.28 * tx) if idx % 2 else ty
+    t = t * t * (3 - 2 * t)
+    img = np.empty((H, W, 3), dtype=np.uint8)
+    for c, (a, b) in enumerate(((r1, r2), (g1, g2), (b1, b2))):
+        img[:, :, c] = (a + (b - a) * t).astype(np.uint8)
+    img = Image.fromarray(img, "RGB").convert("RGBA")
+
+    rng = random.Random(idx * 97 + 13)
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(overlay)
-    d.ellipse([-W * 0.3, H * 0.25, W * 1.3, H * 0.95], fill=70)
-    overlay = overlay.filter(ImageFilter.GaussianBlur(180))
-    img = Image.composite(Image.new("RGB", (W, H), (255, 255, 255)), img, overlay.point(lambda v: v // 4))
+    for _ in range(2):
+        cx, cy = rng.randint(0, W), rng.randint(int(H * 0.25), int(H * 0.85))
+        radio = rng.randint(320, 560)
+        alpha = rng.randint(28, 45)
+        d.ellipse([cx - radio, cy - radio, cx + radio, cy + radio], fill=(gr, gg, gb, alpha))
+    overlay = overlay.filter(ImageFilter.GaussianBlur(70))
+    img = Image.alpha_composite(img, overlay)
+    if idx % 3 == 0:
+        estrellas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        de = ImageDraw.Draw(estrellas)
+        for _ in range(120):
+            x, y = rng.randint(0, W), rng.randint(int(H * 0.04), int(H * 0.30))
+            r = rng.choice([1.2, 1.8, 2.4])
+            a = rng.randint(60, 160)
+            de.ellipse([x - r, y - r, x + r, y + r], fill=(255, 255, 240, a))
+        for _ in range(35):
+            x, y = rng.randint(0, W), rng.randint(int(H * 0.78), int(H * 0.98))
+            r = rng.choice([1.0, 1.6])
+            de.ellipse([x - r, y - r, x + r, y + r], fill=(255, 255, 240, rng.randint(40, 100)))
+        img = Image.alpha_composite(img, estrellas)
+    img = img.convert("RGB")
     return img
 
 
@@ -78,8 +122,8 @@ def marca_superior(d):
     diamante(d, W // 2 + ancho + 40, 160, 12, (200, 180, 120))
 
 
-def render_versiculo(ref, texto):
-    img = fondo(((18, 30, 68), (75, 20, 90)))
+def render_versiculo(ref, texto, idx):
+    img = fondo(idx)
     d = ImageDraw.Draw(img)
     marca_superior(d)
     cuerpo = fuente(64)
@@ -89,6 +133,7 @@ def render_versiculo(ref, texto):
         lineas = envolver(f"“{texto}”", cuerpo, W - 160)
     y = H // 2 - len(lineas) * 41 - 40
     for linea in lineas:
+        d.text((W // 2 + 3, y + 3), linea, font=cuerpo, fill=(0, 0, 0), anchor="mm")
         d.text((W // 2, y), linea, font=cuerpo, fill=(245, 242, 232), anchor="mm")
         y += 82
     fref = fuente(52)
@@ -96,8 +141,8 @@ def render_versiculo(ref, texto):
     return img
 
 
-def render_cta():
-    img = fondo(((15, 25, 60), (120, 40, 30)))
+def render_cta(idx):
+    img = fondo((idx + 5) % 997)
     d = ImageDraw.Draw(img)
     marca_superior(d)
     grande = fuente(72)
@@ -132,30 +177,69 @@ def duracion_mp3(ruta):
     return 5.0
 
 
-def generar_musica(ruta_wav, segundos, bpm=60):
+def nota(freq, dur, rate, ataque=0.02, decaimiento=4.0, harmonicos=(1.0, 0.32, 0.14, 0.06)):
+    n = int(rate * dur)
+    t = np.arange(n) / rate
+    audio = np.zeros(n)
+    for k, peso in enumerate(harmonicos, start=1):
+        audio += peso * np.sin(2 * math.pi * freq * k * t)
+    ataque_n = max(1, int(rate * ataque))
+    ataque_env = np.linspace(0, 1, ataque_n)
+    audio[:ataque_n] *= ataque_env
+    audio *= np.exp(-decaimiento * np.maximum(t - ataque, 0))
+    return audio * 0.35
+
+
+def generar_musica(ruta_wav, segundos, bpm=66):
     rate = 44100
     n = int(rate * segundos)
-    t = np.linspace(0, segundos, n, False)
-    acordes = [
-        [220.00, 261.63, 329.63],
-        [174.61, 220.00, 261.63],
-        [196.00, 246.94, 293.66],
-        [164.81, 196.00, 246.94],
-    ]
-    dur_acorde = 60 / bpm * 4
-    audio = np.zeros(n)
-    for i, f0 in enumerate(t):
-        idx = int(i / rate / dur_acorde) % len(acordes)
-        senal = 0.0
-        for freq in acordes[idx]:
-            senal += np.sin(2 * math.pi * freq * i / rate)
-            senal += 0.35 * np.sin(2 * math.pi * freq * 2 * i / rate)
-        env = 0.25 + 0.08 * math.sin(2 * math.pi * 0.08 * i / rate)
-        audio[int(i)] = senal * env
-    audio = audio / np.max(np.abs(audio)) * 0.45
-    ruido = np.random.normal(0, 0.008, n)
-    audio = audio + ruido
-    pcm = (audio * 32767).astype(np.int16)
+    t = np.arange(n) / rate
+    mezcla = np.zeros(n)
+    dur_batida = 60 / bpm
+    dur_acorde = dur_batida * 4
+
+    for c in range(int(segundos / dur_acorde) + 1):
+        inicio = int(c * dur_acorde * rate)
+        acorde = PROGRESION[c % len(PROGRESION)]
+        pad = acorde[0:3] + [acorde[6]]
+        for nota_n in pad:
+            f = NOTAS[nota_n]
+            seg = nota(f, dur_acorde * 1.15, rate, ataque=0.9, decaimiento=0.35, harmonicos=(1.0, 0.25, 0.08, 0.02))
+            pos = inicio
+            if pos < n:
+                fin = min(n, pos + len(seg))
+                mezcla[pos:fin] += seg[: fin - pos] * 0.30
+        for i, nota_n in enumerate(acorde):
+            if nota_n not in NOTAS:
+                continue
+            f = NOTAS[nota_n]
+            seg = nota(f, dur_batida * 2.0, rate, ataque=0.005, decaimiento=3.4)
+            pos = inicio + int(i * dur_batida * rate)
+            if pos < n:
+                fin = min(n, pos + len(seg))
+                mezcla[pos:fin] += seg[: fin - pos] * 0.22
+
+    eco = np.zeros(n)
+    retardo1 = int(0.30 * rate)
+    retardo2 = int(0.60 * rate)
+    eco[retardo1:] += mezcla[:-retardo1] * 0.30
+    eco[retardo2:] += mezcla[:-retardo2] * 0.12
+    mezcla = mezcla + eco
+
+    a = math.exp(-2 * math.pi * 2400 / rate)
+    taps = 400
+    kernel = a ** np.arange(taps)
+    kernel /= kernel.sum()
+    mezcla = np.convolve(mezcla, kernel, mode="same")
+
+    fade_in = int(1.2 * rate)
+    mezcla[:fade_in] *= np.linspace(0, 1, fade_in)
+    fade_out = int(1.6 * rate)
+    mezcla[-fade_out:] *= np.linspace(1, 0, fade_out)
+    pico = np.max(np.abs(mezcla)) or 1.0
+    mezcla = mezcla / pico * 0.62
+    mezcla = mezcla + np.random.normal(0, 0.0015, n)
+    pcm = (mezcla * 32767).astype(np.int16)
     with wave.open(str(ruta_wav), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -175,6 +259,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--salida", default=str(ROOT / "media"))
     parser.add_argument("--nombre", default=None)
+    parser.add_argument("--indice", type=int, default=None)
     args = parser.parse_args()
 
     salida = Path(args.salida)
@@ -187,13 +272,16 @@ def main():
     ultimo = -1
     if estado_path.exists():
         ultimo = json.loads(estado_path.read_text(encoding="utf-8")).get("ultimo", -1)
-    indice = (ultimo + 1) % len(versos)
-    estado_path.write_text(json.dumps({"ultimo": indice}), encoding="utf-8")
+    if args.indice is not None:
+        indice = args.indice % len(versos)
+    else:
+        indice = (ultimo + 1) % len(versos)
+        estado_path.write_text(json.dumps({"ultimo": indice}), encoding="utf-8")
     verso = versos[indice]
     print(f"Versículo {indice + 1}/{len(versos)}: {verso['ref']}")
 
-    img_v = render_versiculo(verso["ref"], verso["texto"])
-    img_c = render_cta()
+    img_v = render_versiculo(verso["ref"], verso["texto"], indice)
+    img_c = render_cta(indice)
     p_v = tmp / "versiculo.png"
     p_c = tmp / "cta.png"
     img_v.save(p_v)
@@ -225,10 +313,10 @@ def main():
             f"[v0][v1]concat=n=2:v=1:a=0,format=yuv420p[v];"
             f"[2:a]aformat=sample_rates=44100:channel_layouts=stereo,apad=whole_dur={dur_v:.2f}[a0];"
             f"[3:a]aformat=sample_rates=44100:channel_layouts=stereo,apad=whole_dur={dur_c:.2f}[a1];"
-            f"[a0][a1]concat=n=2:v=0:a=1[voz];"
-            f"[4:a]aformat=sample_rates=44100:channel_layouts=stereo,aloop=loop=-1:size=2e9,volume=1.4[mus];"
-            f"[voz][mus]amix=inputs=2:duration=first:dropout_transition=3,"
-            f"volume=1.0,afade=t=out:st={total - 1.2:.2f}:d=1.2[a]"
+            f"[a0][a1]concat=n=2:v=0:a=1,volume=1.0[voz];"
+            f"[4:a]aformat=sample_rates=44100:channel_layouts=stereo,aloop=loop=-1:size=2e9,volume=0.75[mus];"
+            f"[voz][mus]amix=inputs=2:duration=first:dropout_transition=3:normalize=0,"
+            f"afade=t=out:st={total - 1.4:.2f}:d=1.4[a]"
         ),
         "-map", "[v]", "-map", "[a]",
         "-c:v", "libx264", "-preset", "medium", "-crf", "22",
@@ -240,7 +328,9 @@ def main():
 
     caption = (
         f"{verso['texto']}\n\n-- {verso['ref']} --\n\n"
-        f"Descarga Biblia+ gratis. Enlace en la biografía.\n\n"
+        f"Descarga la app Biblia+ gratis (toda la Biblia, audiolibros, planes de lectura):\n"
+        f"{PLAY_URL}\n\n"
+        f"Y en el enlace de nuestra biografía.\n\n"
         f"#biblia #jesus #fe #cristiano #palabradedios #versiculo #dios"
     )
     (tmp / "caption.txt").write_text(caption, encoding="utf-8")
