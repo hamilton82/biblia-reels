@@ -331,7 +331,11 @@ def main():
         f"Descarga la app Biblia+ gratis (toda la Biblia, audiolibros, planes de lectura):\n"
         f"{PLAY_URL}\n\n"
         f"Y en el enlace de nuestra biografía.\n\n"
-        f"#biblia #jesus #fe #cristiano #palabradedios #versiculo #dios"
+        f"#biblia #jesus #cristiano #fe #dios #palabradedios #versiculo "
+        f"#versiculedeldia #evangelio #oracion #amor #esperanza #santoespiritu "
+        f"#frasesbiblicas #bible #bibleverse #verseoftheday #dailyverse "
+        f"#jesuschrist #godisgood #faith #christian #christianity #scripture "
+        f"#inspirational"
     )
     (tmp / "caption.txt").write_text(caption, encoding="utf-8")
     print(f"VIDEO: {p_video}")
